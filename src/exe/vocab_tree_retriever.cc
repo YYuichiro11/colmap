@@ -126,6 +126,7 @@ int main(int argc, char** argv) {
   InitializeGlog(argv);
 
   std::string vocab_tree_path;
+  std::string save_index_path;
   std::string database_image_list_path;
   std::string query_image_list_path;
   int num_images = -1;
@@ -135,6 +136,7 @@ int main(int argc, char** argv) {
   OptionManager options;
   options.AddDatabaseOptions();
   options.AddRequiredOption("vocab_tree_path", &vocab_tree_path);
+  options.AddDefaultOption("save_index_path", &save_index_path);
   options.AddDefaultOption("database_image_list_path",
                            &database_image_list_path);
   options.AddDefaultOption("query_image_list_path", &query_image_list_path);
@@ -144,7 +146,6 @@ int main(int argc, char** argv) {
   options.Parse(argc, argv);
 
   retrieval::VisualIndex<> visual_index;
-  visual_index.Read(vocab_tree_path);
 
   Database database(*options.database_path);
 
@@ -152,8 +153,23 @@ int main(int argc, char** argv) {
       ReadImageList(database_image_list_path, &database);
   const auto query_images = ReadImageList(query_image_list_path, &database);
 
-  IndexImagesInVisualIndex(max_num_features, database_images, &database,
+  if (save_index_path.empty() || !ExistsFile(save_index_path)){
+    visual_index.Read(vocab_tree_path);
+    IndexImagesInVisualIndex(max_num_features, database_images, &database,
                            &visual_index);
+    if (!save_index_path.empty()){
+      // std::cout << StringPrintf("Save generated index into file: %s", save_index_path.c_str())
+      //         << std::endl;
+      visual_index.Write(save_index_path);
+    }
+  }
+  else{
+    // std::cout << StringPrintf("Read from saved index file: %s", save_index_path.c_str())
+    //           << std::endl;
+    visual_index.Read(save_index_path);
+    visual_index.Prepare();
+  }
+
   QueryImagesInVisualIndex(max_num_features, database_images, query_images,
                            num_images, num_verifications, &database,
                            &visual_index);
