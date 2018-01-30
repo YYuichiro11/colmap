@@ -232,19 +232,26 @@ void VisualIndex<kDescType, kDescDim, kEmbeddingDim>::QueryWithVerification(
     const DescType& descriptors, std::vector<ImageScore>* image_scores) const {
   CHECK_EQ(descriptors.rows(), geometries.size());
 
-  size_t num_verifications = image_ids_.size();
+  size_t num_images = image_ids_.size(); // Init with database size
+  if (options.max_num_images >= 0) {
+    // update if user set max_num_images
+    num_images = std::min<size_t>(num_images, options.max_num_images);
+  }
+
+  size_t num_verifications = num_images;
   if (options.max_num_verifications >= 0) {
     num_verifications =
-        std::min<size_t>(image_ids_.size(), options.max_num_verifications);
-  }
+        std::min<size_t>(num_images, options.max_num_verifications);
+  } // Now, num_verifications < num_images is always true.
 
   if (num_verifications == 0) {
     Query(options, descriptors, image_scores);
     return;
   }
 
+
   auto verification_options = options;
-  verification_options.max_num_images = options.max_num_verifications;
+  verification_options.max_num_images = num_images;
 
   Eigen::MatrixXi word_ids;
   QueryAndFindWordIds(verification_options, descriptors, image_scores,
@@ -296,27 +303,19 @@ void VisualIndex<kDescType, kDescDim, kEmbeddingDim>::QueryWithVerification(
     }
 
     VoteAndVerifyOptions vote_and_verify_options;
-    image_score.score += VoteAndVerify(vote_and_verify_options, matches);
+    auto geom_verif_score = VoteAndVerify(vote_and_verify_options, matches);  
+    image_score.score += geom_verif_score;
   }
 
   // Re-rank the images using the spatial verification scores.
-
-  size_t num_images = image_scores->size();
-  if (options.max_num_images >= 0) {
-    num_images = std::min<size_t>(image_scores->size(), options.max_num_images);
-  }
 
   auto SortFunc = [](const ImageScore& score1, const ImageScore& score2) {
     return score1.score > score2.score;
   };
 
-  if (num_images == image_scores->size()) {
-    std::sort(image_scores->begin(), image_scores->end(), SortFunc);
-  } else {
-    std::partial_sort(image_scores->begin(), image_scores->begin() + num_images,
-                      image_scores->end(), SortFunc);
-    image_scores->resize(num_images);
-  }
+  // At least having 1 inlier from geometric verfication make the element stay on
+  // top num_verifications-th position.
+  std::sort(image_scores->begin(), image_scores->end(), SortFunc);
 }
 
 template <typename kDescType, int kDescDim, int kEmbeddingDim>
@@ -398,7 +397,22 @@ void VisualIndex<kDescType, kDescDim, kEmbeddingDim>::Read(
     CHECK(file.is_open()) << path;
     file.seekg(file_offset, std::ios::beg);
     inverted_index_.Read(&file);
+    file_offset = file.tellg();
   }
+
+  // Read the identifiers of all indexed images.
+
+  {
+    std::ifstream file(path, std::ios::binary);
+    CHECK(file.is_open()) << path;
+    file.seekg(file_offset, std::ios::beg);
+    const size_t size = ReadBinaryLittleEndian<size_t>(&file);
+    for (size_t i = 0; i < size; ++i) {
+      auto id = ReadBinaryLittleEndian<int>(&file);
+      image_ids_.insert(id);
+    }
+  }
+
 }
 
 template <typename kDescType, int kDescDim, int kEmbeddingDim>
@@ -433,6 +447,18 @@ void VisualIndex<kDescType, kDescDim, kEmbeddingDim>::Write(
     CHECK(file.is_open()) << path;
     inverted_index_.Write(&file);
   }
+
+  // Write the identifiers of all indexed images.
+
+  {
+    std::ofstream file(path, std::ios::binary | std::ios::app);
+    CHECK(file.is_open()) << path;
+    WriteBinaryLittleEndian<size_t>(&file, image_ids_.size());
+    for (const auto& id: image_ids_) {
+        WriteBinaryLittleEndian<int>(&file, id);
+    }
+  }
+
 }
 
 template <typename kDescType, int kDescDim, int kEmbeddingDim>

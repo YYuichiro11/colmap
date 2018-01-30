@@ -113,6 +113,8 @@ void QueryImagesInVisualIndex(const int max_num_features,
 
     std::cout << StringPrintf(" in %.3fs", timer.ElapsedSeconds()) << std::endl;
     for (const auto& image_score : image_scores) {
+      if(image_id_to_image.count(image_score.image_id) == 0) continue;
+
       const auto& image = *image_id_to_image.at(image_score.image_id);
       std::cout << StringPrintf("  image_id=%d, image_name=%s, score=%f",
                                 image_score.image_id, image.Name().c_str(),
