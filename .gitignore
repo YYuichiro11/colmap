@@ -1,3 +1,7 @@
+# demo 
+query_result_*
+*.bin
+
 # Custom files
 LocalConfig.cmake
 src/util/version.h
