@@ -81,6 +81,8 @@ class InvertedIndex {
 
   void FindMatches(const int word_id, const std::unordered_set<int>& image_ids,
                    std::vector<std::pair<int, GeomType>>* matches) const;
+  void FindMatchesWithWeight(const ProjDescType&, const int word_id, const std::unordered_set<int>& image_ids,
+                   std::vector<std::tuple<int, GeomType, float>>* matches) const;
 
   // Compute the self-similarity for the image.
   float ComputeSelfSimilarity(const Eigen::MatrixXi& word_ids) const;
@@ -91,6 +93,8 @@ class InvertedIndex {
   // Read/write the inverted index from/to a binary file.
   void Read(std::ifstream* ifs);
   void Write(std::ofstream* ofs) const;
+
+  ProjMatrixType GetProjectionMatrix() const {return proj_matrix_;};
 
  private:
   void ComputeWeightsAndNormalizationConstants();
@@ -215,6 +219,8 @@ template <typename kDescType, int kDescDim, int kEmbeddingDim>
 void InvertedIndex<kDescType, kDescDim, kEmbeddingDim>::Query(
     const DescType& descriptors, const Eigen::MatrixXi& word_ids,
     std::vector<ImageScore>* image_scores) const {
+  // Find all image's similarity score.
+
   CHECK_EQ(descriptors.cols(), kDescDim);
 
   image_scores->clear();
@@ -229,11 +235,12 @@ void InvertedIndex<kDescType, kDescDim, kEmbeddingDim>::Query(
   std::unordered_map<int, int> score_map;
   std::vector<ImageScore> inverted_file_scores;
 
+  // This loop process for every database.
   for (typename DescType::Index i = 0; i < descriptors.rows(); ++i) {
     const ProjDescType proj_descriptor =
         proj_matrix_ * descriptors.row(i).transpose().template cast<float>();
     for (Eigen::MatrixXi::Index n = 0; n < word_ids.cols(); ++n) {
-      const int word_id = word_ids(i, n);
+      const int word_id = word_ids(i, n); // n-th nearest neighbor
       if (word_id == kInvalidWordId) {
         continue;
       }
@@ -250,7 +257,8 @@ void InvertedIndex<kDescType, kDescDim, kEmbeddingDim>::Query(
           image_scores->push_back(score);
         } else {
           // Image already found in another inverted file, so accumulate.
-          (*image_scores).at(score_map_it->second).score += score.score;
+          auto& score_index_for_image_id = score_map_it->second;
+          (*image_scores).at(score_index_for_image_id).score += score.score;
         }
       }
     }
@@ -272,6 +280,28 @@ void InvertedIndex<kDescType, kDescDim, kEmbeddingDim>::FindMatches(
   for (const auto& entry : entries) {
     if (image_ids.count(entry.image_id)) {
       matches->emplace_back(entry.image_id, entry.geometry);
+    }
+  }
+}
+
+
+template <typename kDescType, int kDescDim, int kEmbeddingDim>
+void InvertedIndex<kDescType, kDescDim, kEmbeddingDim>::FindMatchesWithWeight(
+    const ProjDescType& proj_descriptor,
+    const int word_id, const std::unordered_set<int>& image_ids,
+    std::vector<std::tuple<int, GeomType, float>>* matches) const {
+  matches->clear();
+
+  const auto& entries = inverted_files_.at(word_id).GetEntries();
+  std::vector<float> hamming_dist;
+  inverted_files_.at(word_id).ComputeMatchWeight(proj_descriptor,
+                                           &hamming_dist);
+  int counter = 0;
+  // std::vector<type>::const_iterator entry_it;
+  for (auto entry_it = entries.begin(); entry_it!=entries.end(); ++entry_it, ++counter){
+    auto& entry = *entry_it;
+    if (image_ids.count(entry.image_id)) {
+      matches->emplace_back(entry.image_id, entry.geometry, hamming_dist[counter]);
     }
   }
 }

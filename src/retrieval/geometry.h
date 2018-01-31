@@ -53,8 +53,11 @@ struct FeatureGeometry {
 
 // 1-to-M feature geometry match.
 struct FeatureGeometryMatch {
+  int feature_id; // ID for feature geometry1
+  int word_id; // visual word id
   FeatureGeometry geometry1;
   std::vector<FeatureGeometry> geometries2;
+  std::vector<float> match_weights;
 };
 
 }  // namespace retrieval

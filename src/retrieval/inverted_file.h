@@ -110,6 +110,10 @@ class InvertedFile {
   void ScoreFeature(const DescType& descriptor,
                     std::vector<ImageScore>* image_scores) const;
 
+  // Given a query feature, get hamming_distant for all entries.
+  void ComputeMatchWeight(const DescType& descriptor,
+                    std::vector<float>* hamming_dist) const;
+
   // Get the identifiers of all indexed images in this file.
   void GetImageIds(std::unordered_set<int>* ids) const;
 
@@ -332,6 +336,33 @@ void InvertedFile<kEmbeddingDim>::ScoreFeature(
     image_score.score /= std::sqrt(static_cast<float>(num_image_votes));
     image_score.score *= squared_idf_weight;
     image_scores->push_back(image_score);
+  }
+}
+
+
+template <int kEmbeddingDim>
+void InvertedFile<kEmbeddingDim>::ComputeMatchWeight(
+    const DescType& descriptor, std::vector<float>* weights) const {
+  CHECK_EQ(descriptor.size(), kEmbeddingDim);
+
+  weights->clear();
+
+  if (!IsUsable()) {
+    return;
+  }
+
+  if (entries_.size() == 0) {
+    return;
+  }
+
+  const float squared_idf_weight = idf_weight_ * idf_weight_;
+
+  std::bitset<kEmbeddingDim> bin_descriptor;
+  ConvertToBinaryDescriptor(descriptor, &bin_descriptor);
+
+  for (const auto& entry : entries_) {
+    const size_t hamming_dist = (bin_descriptor ^ entry.descriptor).count();
+    weights->push_back(hamming_dist_weight_functor_(hamming_dist) * squared_idf_weight);
   }
 }
 
