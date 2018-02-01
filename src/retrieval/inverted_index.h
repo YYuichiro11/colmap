@@ -94,7 +94,7 @@ class InvertedIndex {
   void Read(std::ifstream* ifs);
   void Write(std::ofstream* ofs) const;
 
-  ProjMatrixType GetProjectionMatrix() const {return proj_matrix_;};
+  const ProjMatrixType& GetProjectionMatrix() const {return proj_matrix_;};
 
  private:
   void ComputeWeightsAndNormalizationConstants();
