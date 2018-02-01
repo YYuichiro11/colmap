@@ -432,17 +432,17 @@ void VisualIndex<kDescType, kDescDim, kEmbeddingDim>::QueryWithVerification(
         std::min<size_t>(image_ids_.size(), options.max_num_verifications);
   }
 
+  if (options.max_num_images != -1){
+    CHECK(num_verifications <= image_ids_.size());
+  }
+
   if (num_verifications == 0) {
     Query(options, descriptors, image_scores);
     return;
   }
 
-
-  auto verification_options = options;
-  verification_options.max_num_images = options.max_num_verifications;
-
   Eigen::MatrixXi word_ids;
-  QueryAndFindWordIds(verification_options, descriptors, image_scores,
+  QueryAndFindWordIds(options, descriptors, image_scores,
                       &word_ids);
 
   // Extract top-ranked images to verify.
@@ -468,7 +468,7 @@ void VisualIndex<kDescType, kDescDim, kEmbeddingDim>::QueryWithVerification(
       inverted_index_.FindMatchesWithWeight(proj_descriptor, word_id, image_ids, &word_matches); // Find all matches
       for (const auto& match : word_matches) {
         int image_id_idx = std::get<0>(match); // index of matched image_id
-        auto keypoint = std::get<1>(match);
+        auto keypoint = std::get<1>(match); // geometry
         float weight = std::get<2>(match);
 
         // image_matches[image_id that contains matched keypoint][i-th descriptor] save keypoint for the matched image.
@@ -519,7 +519,7 @@ void VisualIndex<kDescType, kDescDim, kEmbeddingDim>::QueryWithVerification(
 
     VoteAndVerifyOptions vote_and_verify_options;
     auto geom_verif_score = VoteAndVerify(vote_and_verify_options, matches_1to1);
-    image_score.score += geom_verif_score;
+    image_score.score += geom_verif_score; // geom_verif_score >=0. By adding this, images subjected for spatial verifaction always on top of other images.
   }
 
   // Re-rank the images using the spatial verification scores.
