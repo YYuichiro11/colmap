@@ -293,15 +293,15 @@ void InvertedIndex<kDescType, kDescDim, kEmbeddingDim>::FindMatchesWithWeight(
   matches->clear();
 
   const auto& entries = inverted_files_.at(word_id).GetEntries();
-  std::vector<float> hamming_dist;
+  std::vector<float> match_weights;
   inverted_files_.at(word_id).ComputeMatchWeight(proj_descriptor,
-                                           &hamming_dist);
+                                           &match_weights);
   int counter = 0;
   // std::vector<type>::const_iterator entry_it;
   for (auto entry_it = entries.begin(); entry_it!=entries.end(); ++entry_it, ++counter){
     auto& entry = *entry_it;
     if (image_ids.count(entry.image_id)) {
-      matches->emplace_back(entry.image_id, entry.geometry, hamming_dist[counter]);
+      matches->emplace_back(entry.image_id, entry.geometry, match_weights[counter]);
     }
   }
 }
