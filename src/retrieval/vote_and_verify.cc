@@ -383,10 +383,11 @@ int VoteAndVerify(const VoteAndVerifyOptions& options,
     return 0;
   }
 
-  const int kNumBins = 64;
-  return ComputeEffectiveInlierCount(best_tform, matches,
-                                     options.max_transfer_error,
-                                     options.max_scale_error, kNumBins);
+  return best_num_inliers;
+  // const int kNumBins = 64;
+  // return ComputeEffectiveInlierCount(best_tform, matches,
+  //                                    options.max_transfer_error,
+  //                                    options.max_scale_error, kNumBins);
 }
 
 }  // namespace retrieval
