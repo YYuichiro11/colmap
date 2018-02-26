@@ -1487,7 +1487,7 @@ int RunVocabTreeRetriever(int argc, char** argv) {
   options.Parse(argc, argv);
 
   retrieval::VisualIndex<> visual_index;
-  visual_index.Read(vocab_tree_path);
+
 
   Database database(*options.database_path);
 
@@ -1502,38 +1502,47 @@ int RunVocabTreeRetriever(int argc, char** argv) {
   // Perform image indexing
   //////////////////////////////////////////////////////////////////////////////
 
-  for (size_t i = 0; i < database_images.size(); ++i) {
-    Timer timer;
-    timer.Start();
+  if (output_index_path.empty() || !ExistsFile(output_index_path)) {
+      visual_index.Read(vocab_tree_path);
+  
+      for (size_t i = 0; i < database_images.size(); ++i) {
+        Timer timer;
+        timer.Start();
 
-    std::cout << StringPrintf("Indexing image [%d/%d]", i + 1,
-                              database_images.size())
-              << std::flush;
+        std::cout << StringPrintf("Indexing image [%d/%d]", i + 1,
+                                  database_images.size())
+                  << std::flush;
 
-    if (visual_index.ImageIndexed(database_images[i].ImageId())) {
-      std::cout << std::endl;
-      continue;
-    }
+        if (visual_index.ImageIndexed(database_images[i].ImageId())) {
+          std::cout << std::endl;
+          continue;
+        }
 
-    auto keypoints = database.ReadKeypoints(database_images[i].ImageId());
-    auto descriptors = database.ReadDescriptors(database_images[i].ImageId());
-    if (max_num_features > 0 && descriptors.rows() > max_num_features) {
-      ExtractTopScaleFeatures(&keypoints, &descriptors, max_num_features);
-    }
+        auto keypoints = database.ReadKeypoints(database_images[i].ImageId());
+        auto descriptors = database.ReadDescriptors(database_images[i].ImageId());
+        if (max_num_features > 0 && descriptors.rows() > max_num_features) {
+          ExtractTopScaleFeatures(&keypoints, &descriptors, max_num_features);
+        }
 
-    visual_index.Add(retrieval::VisualIndex<>::IndexOptions(),
-                     database_images[i].ImageId(), keypoints, descriptors);
+        visual_index.Add(retrieval::VisualIndex<>::IndexOptions(),
+                         database_images[i].ImageId(), keypoints, descriptors);
 
-    std::cout << StringPrintf(" in %.3fs", timer.ElapsedSeconds()) << std::endl;
+        std::cout << StringPrintf(" in %.3fs", timer.ElapsedSeconds()) << std::endl;
+      }
+
+      // Compute the TF-IDF weights, etc.
+      visual_index.Prepare();
+
+      // Optionally save the indexing data for the database images (as well as the
+      // original vocabulary tree data) to speed up future indexing.
+      if (!output_index_path.empty()) {
+        visual_index.Write(output_index_path);
+      }
   }
-
-  // Compute the TF-IDF weights, etc.
-  visual_index.Prepare();
-
-  // Optionally save the indexing data for the database images (as well as the
-  // original vocabulary tree data) to speed up future indexing.
-  if (!output_index_path.empty()) {
-    visual_index.Write(output_index_path);
+  else {
+      visual_index.Read(output_index_path);
+      // Compute the TF-IDF weights, etc.
+      visual_index.Prepare();
   }
 
   if (query_images.empty()) {
