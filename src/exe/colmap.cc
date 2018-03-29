@@ -1481,8 +1481,8 @@ int RunVocabTreeRetriever(int argc, char** argv) {
   options.AddDefaultOption("num_images", &query_options.max_num_images);
   options.AddDefaultOption("num_neighbors", &query_options.num_neighbors);
   options.AddDefaultOption("num_checks", &query_options.num_checks);
-  options.AddDefaultOption("spatial_verification",
-                           &query_options.spatial_verification);
+  options.AddDefaultOption("num_images_after_verification",
+                           &query_options.num_images_after_verification);
   options.AddDefaultOption("max_num_features", &max_num_features);
   options.Parse(argc, argv);
 
@@ -1504,7 +1504,7 @@ int RunVocabTreeRetriever(int argc, char** argv) {
 
   if (output_index_path.empty() || !ExistsFile(output_index_path)) {
       visual_index.Read(vocab_tree_path);
-  
+
       for (size_t i = 0; i < database_images.size(); ++i) {
         Timer timer;
         timer.Start();
@@ -1543,6 +1543,16 @@ int RunVocabTreeRetriever(int argc, char** argv) {
       visual_index.Read(output_index_path);
       // Compute the TF-IDF weights, etc.
       visual_index.Prepare();
+  }
+
+  if (query_images.empty()) {
+    return EXIT_SUCCESS;
+  }
+
+  // Optionally save the indexing data for the database images (as well as the
+  // original vocabulary tree data) to speed up future indexing.
+  if (!output_index_path.empty()) {
+    visual_index.Write(output_index_path);
   }
 
   if (query_images.empty()) {
